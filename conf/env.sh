@@ -1,0 +1,1 @@
+export REACT_APP_BACKEND_ADDRESS=http://127.0.0.1:8000
