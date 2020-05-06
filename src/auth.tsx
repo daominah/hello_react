@@ -1,6 +1,5 @@
 import React from 'react';
 import * as table from './table'
-import {TableTwoColsCpn} from "./table";
 
 export interface Profile {
     ScreenName: string
@@ -118,7 +117,7 @@ export class LoginCpn extends React.Component<ProfileProps> {
         try {
             let resp = await fetch(loginUrl, req);
             if (!resp.ok) {
-                throw `response status: ${resp.status} ${resp.statusText}`
+                throw new Error(`response status: ${resp.status} ${resp.statusText}`)
             }
             let res = await resp.json();
             console.log("received response: ", res);
@@ -135,7 +134,7 @@ export class LoginCpn extends React.Component<ProfileProps> {
                 })
             }
         } catch (err) {
-            let errMsg = `error when fetch: ${err}`;
+            let errMsg = `error when fetch: ${err.message}`;
             console.log(errMsg);
             this.setState({Error: errMsg, Response: undefined});
         }

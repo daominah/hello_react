@@ -4,7 +4,6 @@ import './index.css';
 import * as serviceWorker from './serviceWorker';
 import * as auth from './auth';
 import * as priceBoard from './price_board'
-import {PriceBoardCpn} from "./price_board";
 
 interface IndexState {
     isLoggedIn: boolean
