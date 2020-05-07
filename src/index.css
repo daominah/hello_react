@@ -13,6 +13,7 @@ table, tr, td {
 }
 
 .leftNavigator {
+    /*visibility:hidden;*/
     position: fixed;
     top: 0;
     padding-top: 0;
@@ -22,8 +23,12 @@ table, tr, td {
     background-color: grey;
 }
 
+.loginButton {
+    width: 35%;
+}
+
 .content {
-    padding-left: 16%;
+    padding-left: 15%;
 }
 
 code {
@@ -43,4 +48,12 @@ code {
 
 .error {
     color: orange;
+}
+
+.flash {
+    background-color: red;
+}
+
+.flashOff {
+    background-color: white
 }

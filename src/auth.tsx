@@ -86,14 +86,15 @@ export class LoginCpn extends React.Component<ProfileProps> {
                         justifyContent: "space-between",
                         paddingTop: "15px",
                     }}>
-                        <input type="submit" value="Login "
-                               disabled={this.props.isLoggedIn}/>
+                        <input className="loginButton" type="submit"
+                               value="Login" disabled={this.props.isLoggedIn}/>
                         <a href="#login" style={{fontSize: "80%"}}>
                             forgot password
                         </a>
                     </div>
                 </form>
-                <button disabled={!this.props.isLoggedIn}
+                <button className="loginButton"
+                        disabled={!this.props.isLoggedIn}
                         onClick={this.handleLogout}>
                     Logout
                 </button>

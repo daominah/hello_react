@@ -1,64 +1,117 @@
 import React from 'react';
-import {TableCpn} from "./table";
 
 export class PriceBoardCpn extends React.Component {
-    state: Record<string, PriceRow>;
+    state: {
+        prices: Record<string, PriceRow>,
+        wsConn?: WebSocket,
+    };
 
     constructor(props: any) {
         super(props);
-        let symbol1 = Object.assign({}, defaultPriceRow);
-        symbol1.code = "ACB";
-        this.state = {"ZZZ": defaultPriceRow, "ACB": symbol1};
-        // this.state = {};
+        this.disconnectWS = this.disconnectWS.bind(this);
+        this.state = {prices: {}};
         fetch("http://127.0.0.1:8000/security")
             .then((resp) => {
                 resp.json().then((body: PriceRow[]) => {
-                    console.log("pussy", body);
-                    body.map((v: PriceRow) => {
-                        this.state[v.code] = v
+                    console.log("fetched pussy", body);
+                    body.forEach((v: PriceRow) => {
+                        this.state.prices[v.code] = v;
                     });
                     this.setState(this.state)
                 })
             })
             .catch(err => {
             });
-        let socket = new WebSocket("ws://127.0.0.1:8001/");
-        socket.onopen = function (event) {
+
+        let wsConn = new WebSocket("ws://127.0.0.1:8001/");
+        wsConn.onopen = (event) => {
             console.log("ws connected");
         };
-        socket.onerror = function (event) {
-            console.log(`[error]: `, event);
+        wsConn.onerror = (event) => {
+            this.state.wsConn = undefined;
+            console.log(`error or close: `, event);
         };
-        socket.onmessage = (event) => {
-            let msg = event.data;
-            // console.log(`ws message: `, msg);
-            let data: PriceRow = JSON.parse(msg);
-            console.log(`ws data: `, data);
-            this.state[data.code] = data;
+        wsConn.onclose = wsConn.onerror;
+        wsConn.onmessage = (event) => {
+            // console.log(`ws message: `, e);
+            // console.log(`ws event.data: `, event.data);
+            let xData: PriceRow;
+            let xMsgV2: XPriceRowV2 = JSON.parse(event.data);
+            xData = xMsgV2.data;
+            if (Array.isArray(xData)) { // techX ver 1 format
+                let xMsgV1: XPriceRowV1 = JSON.parse(event.data);
+                if (xMsgV1.data.length === 0) {
+                    return
+                }
+                xData = xMsgV1.data[0];
+            }
+            console.log(`xData ${xData.code}: `, xData);
+            if (!this.state.prices[xData.code]) return; // only update predefined symbol
+            console.log(`update for symbol ${xData.code}`);
+            let update = Object.assign({}, this.state.prices[xData.code]);
+            Object.assign(update, xData);
+            this.state.prices[xData.code] = update;
             this.setState(this.state);
-        }
+        };
+        this.state.wsConn = wsConn
     }
 
     render() {
         console.log("about to render PriceBoardCpn");
         return (<div>
             <h1>Securities Price Board</h1>
+            <button onClick={this.disconnectWS}>Disconnect</button>
+            <br/><br/>
             <table>
                 <tbody>
-                <PriceRowCpn isFirstRow={true} data={defaultPriceRow}/>
-                {Object.keys(this.state).map(k =>
-                    <PriceRowCpn isFirstRow={false} data={this.state[k]}/>
-                )}
+                <PriceRowCpn key="firstRow"
+                             isFirstRow={true} data={defaultPriceRow}/>
+                {Object.keys(this.state.prices).concat().sort()
+                    .map(key =>
+                        <PriceRowCpn key={key}
+                                     isFirstRow={false}
+                                     data={this.state.prices[key]}/>
+                    )}
                 </tbody>
             </table>
         </div>)
     }
+
+    disconnectWS() {
+        if (this.state.wsConn) {
+            this.state.wsConn.close();
+        }
+    }
 }
 
-export class PriceRowCpn extends React.Component<{
-    isFirstRow: boolean,
-    data: PriceRow,
-}> {
+export class PriceRowCpn extends React.Component<PriceRowProps> {
+    state: PriceRowState;
+
+    constructor(props: any) {
+        super(props);
+        this.state = {cssClass: "flashOff", lastTotalTradedVol: 0};
+    }
+
+    componentWillReceiveProps(nextProps: PriceRowProps) {
+        if (nextProps.data.tradingVolume !== this.state.lastTotalTradedVol) {
+            this.state.cssClass = "flash"
+        }
+        this.state.lastTotalTradedVol = nextProps.data.tradingVolume
+    }
+
+    componentDidUpdate() {
+        if (this.state.cssClass == "flash") {
+            setTimeout(() => {
+                this.setState({cssClass: "flashOff"});
+            }, 500);
+        }
+    }
+
+    shouldComponentUpdate(nextProps: PriceRowProps, nextState: PriceRowState): boolean {
+        return (this.props.data !== nextProps.data) ||
+            this.state.cssClass !== nextState.cssClass;
+    }
+
     render() {
         let [bid3Px, bid3Vol, bid2Px, bid2Vol, bid1Px, bid1Vol] = [0, 0, 0, 0, 0, 0];
         let [ask3Px, ask3Vol, ask2Px, ask2Vol, ask1Px, ask1Vol] = [0, 0, 0, 0, 0, 0];
@@ -88,7 +141,7 @@ export class PriceRowCpn extends React.Component<{
                 ask1Vol = this.props.data.bidOfferList[0].offerVolume;
             }
         }
-        let columns = [
+        let columns: { Key: string, Val: any }[] = [
             {Key: "Symbol", Val: this.props.data.code},
             {Key: "RefPx", Val: this.props.data.referencePrice},
             {Key: "Ceiling", Val: this.props.data.ceilingPrice},
@@ -109,24 +162,44 @@ export class PriceRowCpn extends React.Component<{
             {Key: "Ask2Vol", Val: ask2Vol},
             {Key: "Ask3Px", Val: ask3Px},
             {Key: "Ask3Vol", Val: ask3Vol},
+            {Key: "Session", Val: this.props.data.session},
+            {Key: "ExpectPx", Val: this.props.data.expectedPrice},
         ];
-        if (this.props.isFirstRow) {
-            return (<tr key="theFirstRow">
-                {columns.map(v => (
-                    <td key={v.Key}>{v.Key}</td>
-                ))}
-            </tr>)
-        }
-        console.log(`about to render ${this.props.data.code}`);
-        if (this.props.data.code === "ACB") {
-            console.log(`this.props.data: `, this.props.data, `columns: `, columns)
-        }
-        return (<tr key={this.props.data.code}>
+        columns.forEach((v) => {
+            if (this.props.isFirstRow) {
+                v.Val = v.Key
+            }
+            if (typeof(v.Val) == "number") {
+                v.Val = Math.round(v.Val * 100) / 100
+            }
+        });
+        console.log(`about to render row ${this.props.data.code}`);
+        return (<tr className={this.state.cssClass} key={this.props.data.code}>
             {columns.map(v => (
                 <td key={v.Key}>{v.Val}</td>
             ))}
         </tr>)
     }
+}
+
+interface PriceRowProps {
+    isFirstRow: boolean,
+    data: PriceRow,
+}
+
+interface PriceRowState {
+    cssClass: string
+    lastTotalTradedVol: number
+}
+
+interface XPriceRowV1 {
+    sourceId: string
+    data: PriceRow[]
+}
+
+interface XPriceRowV2 {
+    sourceId: string
+    data: PriceRow
 }
 
 interface PriceRow {
@@ -146,10 +219,13 @@ interface PriceRow {
         offerPrice: number,
         offerVolume: number,
     }[],
+    expectedPrice: number,
+    session: string,
 }
 
 const defaultPriceRow: PriceRow = {
     code: "ZZZ", type: "STOCK", securitiesType: "STOCK",
     referencePrice: 0, ceilingPrice: 0, floorPrice: 0, tradingVolume: 0,
     last: 0, matchingVolume: 0, rate: 0, bidOfferList: [],
+    expectedPrice: 0, session: "",
 };
